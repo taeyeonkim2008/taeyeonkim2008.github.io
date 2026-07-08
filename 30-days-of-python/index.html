@@ -6,6 +6,8 @@
   <title>30 Days of Python — Interactive</title>
   <link rel="stylesheet" href="styles.css">
   <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 </head>
 <body>
   <div id="app">
@@ -32,9 +34,10 @@
           <h1><span class="accent">30 Days</span> of Python</h1>
           <p class="welcome-desc">
             From <code>print("Hello, World!")</code> to APIs — one day at a time.
-            Inspired by Asabeneh Yetayeh's famous 30 Days of Python challenge, rebuilt
-            as a fully interactive course: run real Python in your browser, take quizzes,
-            and complete graded exercises every day.
+            Based on <a href="https://github.com/Asabeneh/30-Days-Of-Python" target="_blank" rel="noopener">Asabeneh Yetayeh's famous 30 Days of Python</a>,
+            rebuilt as a fully interactive course: run real Python in your browser, take quizzes,
+            and complete graded exercises every day. Each day also includes Asabeneh's
+            <strong>original full text</strong>, loaded live from his GitHub repo.
           </p>
           <div class="welcome-stats">
             <div class="stat-card">
@@ -73,5 +76,6 @@
   <script src="days-16-30.js"></script>
   <script src="app.js"></script>
   <script src="sync.js"></script>
+  <script src="original.js"></script>
 </body>
 </html>

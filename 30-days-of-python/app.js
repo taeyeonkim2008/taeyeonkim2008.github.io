@@ -124,6 +124,8 @@ function showLesson(index) {
     body.appendChild(el);
   });
 
+  if (typeof renderOriginalPanel === "function") renderOriginalPanel(index);
+
   renderNav();
   document.getElementById("sidebar").classList.remove("open");
   window.scrollTo(0, 0);
