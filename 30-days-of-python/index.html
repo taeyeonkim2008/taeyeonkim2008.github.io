@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>30 Days of Python — Interactive</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js"></script>
+</head>
+<body>
+  <div id="app">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <h1 class="logo">py<span class="accent">30</span></h1>
+        <p class="subtitle">30 Days of Python &middot; Interactive</p>
+      </div>
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="globalProgress"></div>
+        <span class="progress-label" id="progressLabel">0% complete</span>
+      </div>
+      <ul class="lesson-nav" id="lessonNav"></ul>
+      <div class="sidebar-footer">
+        <button class="reset-btn" id="resetProgress">Reset Progress</button>
+      </div>
+    </nav>
+
+    <button class="sidebar-toggle" id="sidebarToggle">&#9776;</button>
+
+    <main class="main-content" id="mainContent">
+      <div id="welcomeScreen" class="welcome">
+        <div class="welcome-inner">
+          <h1><span class="accent">30 Days</span> of Python</h1>
+          <p class="welcome-desc">
+            From <code>print("Hello, World!")</code> to APIs — one day at a time.
+            Inspired by Asabeneh Yetayeh's famous 30 Days of Python challenge, rebuilt
+            as a fully interactive course: run real Python in your browser, take quizzes,
+            and complete graded exercises every day.
+          </p>
+          <div class="welcome-stats">
+            <div class="stat-card">
+              <span class="stat-number" id="totalLessons">0</span>
+              <span class="stat-label">Days</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-number" id="totalExercises">0</span>
+              <span class="stat-label">Exercises</span>
+            </div>
+            <div class="stat-card">
+              <span class="stat-number" id="totalQuizzes">0</span>
+              <span class="stat-label">Quizzes</span>
+            </div>
+          </div>
+          <button class="start-btn" id="startBtn">Start Learning</button>
+          <p class="pyodide-status" id="pyodideStatus">Loading Python runtime...</p>
+        </div>
+      </div>
+
+      <div id="lessonView" class="lesson-view" style="display:none">
+        <div class="lesson-header">
+          <span class="lesson-badge" id="lessonBadge"></span>
+          <h2 class="lesson-title" id="lessonTitle"></h2>
+        </div>
+        <div class="lesson-body" id="lessonBody"></div>
+        <div class="lesson-nav-buttons">
+          <button class="nav-btn prev-btn" id="prevBtn">Previous</button>
+          <button class="nav-btn next-btn" id="nextBtn">Next Day</button>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <script src="days-1-15.js"></script>
+  <script src="days-16-30.js"></script>
+  <script src="app.js"></script>
+  <script src="sync.js"></script>
+</body>
+</html>
