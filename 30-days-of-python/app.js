@@ -1,4 +1,4 @@
-var pyodide = null;
+var pyReady = false;
 let currentLesson = -1;
 let progress = {};
 const STORAGE_KEY = "py30_progress";
@@ -10,18 +10,75 @@ document.addEventListener("DOMContentLoaded", () => {
   updateGlobalProgress();
   updateWelcomeStats();
   setupEventListeners();
-  initPyodide();
+  spawnPyWorker();
 });
 
-async function initPyodide() {
+// ===== Python runner =====
+// Python executes in a Web Worker (background thread), so user code can
+// never freeze the page. A watchdog kills runs that exceed the timeout —
+// almost always an infinite loop — and restarts the runtime automatically.
+const PY_TIMEOUT_MS = 10000;
+let pyWorker = null;
+let pyWorkerReady = null;
+let pyMsgId = 0;
+const pyPending = new Map();
+
+function spawnPyWorker() {
+  pyReady = false;
   const status = document.getElementById("pyodideStatus");
-  try {
-    pyodide = await globalThis.loadPyodide();
-    status.textContent = "Python runtime ready";
-    status.classList.add("ready");
-  } catch (e) {
-    status.textContent = "Python runtime failed to load — code editors disabled";
+  pyWorker = new Worker("py-worker.js");
+  pyWorkerReady = new Promise(resolve => {
+    pyWorker.onmessage = (e) => {
+      if (e.data.type === "ready") {
+        pyReady = true;
+        if (status) {
+          status.textContent = "Python runtime ready";
+          status.classList.add("ready");
+        }
+        resolve();
+        return;
+      }
+      const pending = pyPending.get(e.data.id);
+      if (pending) {
+        clearTimeout(pending.timer);
+        pyPending.delete(e.data.id);
+        pending.resolve(e.data);
+      }
+    };
+    pyWorker.onerror = () => {
+      if (status) status.textContent = "Python runtime failed to load — code editors disabled";
+    };
+  });
+}
+
+function restartPyWorker() {
+  try { pyWorker.terminate(); } catch (_) {}
+  for (const [, pending] of pyPending) {
+    clearTimeout(pending.timer);
+    pending.resolve({ timeout: true, output: "", error: null, result: null });
   }
+  pyPending.clear();
+  const status = document.getElementById("pyodideStatus");
+  if (status) {
+    status.classList.remove("ready");
+    status.textContent = "Restarting Python runtime...";
+  }
+  spawnPyWorker();
+}
+
+// Returns { output, error, result, timeout } — never rejects.
+async function runPython(code, opts = {}) {
+  await pyWorkerReady;
+  return new Promise(resolve => {
+    const id = ++pyMsgId;
+    const timer = setTimeout(() => {
+      pyPending.delete(id);
+      restartPyWorker();
+      resolve({ timeout: true, output: "", error: null, result: null });
+    }, opts.timeoutMs || PY_TIMEOUT_MS);
+    pyPending.set(id, { resolve, timer });
+    pyWorker.postMessage({ id, code, stdin: opts.stdin ?? null, isolate: !!opts.isolate });
+  });
 }
 
 // ===== Progress =====
@@ -217,7 +274,7 @@ function createEditor(section, uid) {
 }
 
 async function runCode(uid, extraCode, onResult) {
-  if (!pyodide) {
+  if (!pyReady) {
     showOutput(uid, "Python runtime is still loading. Please wait...", true);
     return;
   }
@@ -226,41 +283,33 @@ async function runCode(uid, extraCode, onResult) {
   const code = textarea.value;
 
   const runBtn = textarea.closest(".editor-container").querySelector(".run-btn");
+  const runBtnLabel = runBtn.innerHTML;
   runBtn.disabled = true;
   runBtn.textContent = "Running...";
 
-  try {
-    pyodide.runPython(`
-import sys, io
-__stdout_capture = io.StringIO()
-sys.stdout = __stdout_capture
-`);
+  let fullCode = code;
+  if (extraCode) fullCode += "\n" + extraCode;
 
-    let fullCode = code;
-    if (extraCode) fullCode += "\n" + extraCode;
+  const r = await runPython(fullCode);
 
-    pyodide.runPython(fullCode);
-
-    const output = pyodide.runPython("__stdout_capture.getvalue()");
-    pyodide.runPython("sys.stdout = sys.__stdout__");
-
-    showOutput(uid, output || "(No output)", false);
-
-    if (onResult) {
-      const result = pyodide.runPython("__result");
-      onResult(result);
-    }
-  } catch (err) {
-    pyodide.runPython("sys.stdout = sys.__stdout__");
-    let msg = err.message || String(err);
-    const lines = msg.split("\n");
-    const relevant = lines.filter(l => !l.includes("pyodide") && !l.includes("JsProxy"));
-    showOutput(uid, relevant.join("\n") || msg, true);
-    if (onResult) onResult("FAIL: " + msg);
+  if (r.timeout) {
+    showOutput(uid,
+      "⏱ Stopped after 10 seconds — this looks like an infinite loop!\n" +
+      "Check that your loop condition eventually becomes False (or add a break),\n" +
+      "then press Run again. The Python runtime is restarting in the background.",
+      true);
+    if (onResult) onResult("FAIL: timed out — possible infinite loop");
+  } else if (r.error) {
+    if (r.output) showOutput(uid, r.output + "\n" + r.error, true);
+    else showOutput(uid, r.error, true);
+    if (onResult) onResult("FAIL: " + r.error.split("\n").pop());
+  } else {
+    showOutput(uid, r.output || "(No output)", false);
+    if (onResult) onResult(r.result);
   }
 
   runBtn.disabled = false;
-  runBtn.textContent = "Run ▶";
+  runBtn.innerHTML = runBtnLabel;
 }
 
 function showOutput(uid, text, isError) {

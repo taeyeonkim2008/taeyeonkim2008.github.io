@@ -38,23 +38,11 @@ function rint(a, b) { return Math.floor(Math.random() * (b - a + 1)) + a; }
 function choice(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function pyStr(x) { return JSON.stringify(x); } // valid Python literal for ASCII strings/lists/dicts
 
-// ===== Run generated Python to compute an answer key (isolated namespace) =====
-function pyCapture(code) {
-  if (!pyodide) return "";
-  pyodide.globals.set("__gen_code", code);
-  pyodide.runPython(`
-import sys, io
-__o = io.StringIO(); __old = sys.stdout; sys.stdout = __o
-__gns = {}
-try:
-    exec(__gen_code, __gns)
-except Exception as e:
-    print("ERROR:", e)
-finally:
-    sys.stdout = __old
-__gen_out = __o.getvalue()
-`);
-  return normalizeOutput(String(pyodide.globals.get("__gen_out") ?? ""));
+// ===== Run generated Python to compute an answer key (in the worker) =====
+async function pyCapture(code) {
+  const r = await runPython(code, { isolate: true });
+  if (r.timeout || r.error) return "ERROR";
+  return normalizeOutput(r.output);
 }
 
 // ===== JS reference implementations (for building randomized test cases) =====
@@ -86,7 +74,7 @@ function makeDistractors(correct) {
 // ===== Question generators (one per slot) =====
 const GEN = {
   // Slot 1: nested-loop grid / pattern (multiple choice)
-  pattern() {
+  async pattern() {
     const kind = choice(["gle", "mult", "triangle"]);
     let code;
     if (kind === "gle") {
@@ -114,7 +102,7 @@ const GEN = {
 `for i in range(1, ${n + 1}):
     print("*" * i)`;
     }
-    const correct = pyCapture(code);
+    const correct = await pyCapture(code);
     const options = shuffle([correct, ...makeDistractors(correct)]);
     return {
       type: "mc",
@@ -127,7 +115,7 @@ const GEN = {
   },
 
   // Slot 2: for-loop accumulator / counter (predict)
-  forLoop() {
+  async forLoop() {
     const v = choice(["sum", "count", "step"]);
     let code;
     if (v === "sum") {
@@ -144,13 +132,13 @@ const GEN = {
       type: "predict",
       prompt: "What number is printed?",
       code,
-      expected: pyCapture(code),
+      expected: await pyCapture(code),
       explain: "Step through each iteration and update the accumulator. For nested loops, the inner loop runs fully for every outer iteration."
     };
   },
 
   // Slot 3: while loop (predict)
-  whileLoop() {
+  async whileLoop() {
     if (Math.random() < 0.5) {
       const start = rint(9, 16), step = choice([2, 3, 4]);
       const code = `i = ${start}\nwhile i > 0:\n    print(i, end=' ')\n    i -= ${step}`;
@@ -158,7 +146,7 @@ const GEN = {
         type: "predict",
         prompt: "What is the exact output? (values separated by single spaces)",
         code,
-        expected: pyCapture(code),
+        expected: await pyCapture(code),
         explain: "Print the value, then subtract the step each pass, until the condition becomes false."
       };
     } else {
@@ -168,14 +156,14 @@ const GEN = {
         type: "predict",
         prompt: "What number is printed?",
         code,
-        expected: pyCapture(code),
+        expected: await pyCapture(code),
         explain: "Integer-dividing by 10 strips one digit each pass, so the loop counts the number of digits."
       };
     }
   },
 
   // Slot 4: string slicing (predict)
-  slice() {
+  async slice() {
     const w = choice(["PYTHON", "COMPUTER", "PROGRAM", "VARIABLE", "FUNCTION", "INTEGER"]);
     const v = choice(["range", "reverse", "step", "fromend", "open"]);
     let code;
@@ -188,13 +176,13 @@ const GEN = {
       type: "predict",
       prompt: "What is printed? (Type the exact text, no quotes.)",
       code,
-      expected: pyCapture(code),
+      expected: await pyCapture(code),
       explain: "Slicing is [start:stop:step] — start inclusive, stop exclusive. A negative step walks backwards; a negative index counts from the end."
     };
   },
 
   // Slot 5: arithmetic // and % (predict)
-  arith() {
+  async arith() {
     const v = choice(["divmod", "power", "floorneg", "precedence"]);
     let code;
     if (v === "divmod") { const a = rint(13, 98), b = rint(2, 9); code = `print(${a} // ${b}, ${a} % ${b})`; }
@@ -205,13 +193,13 @@ const GEN = {
       type: "predict",
       prompt: "What is the exact output?",
       code,
-      expected: pyCapture(code),
+      expected: await pyCapture(code),
       explain: "Apply precedence: ** first, then * / // %, then + -. // floors toward negative infinity, % is the remainder."
     };
   },
 
   // Slot 6: boolean / relational logic (predict)
-  boolean() {
+  async boolean() {
     const v = choice(["and", "ornot", "chain"]);
     let code;
     if (v === "and") { const a = rint(1, 9), b = rint(1, 9), c = rint(1, 9), d = rint(1, 9); code = `print(${a} > ${b} and ${c} < ${d})`; }
@@ -221,7 +209,7 @@ const GEN = {
       type: "predict",
       prompt: "What is printed? (True or False)",
       code,
-      expected: pyCapture(code),
+      expected: await pyCapture(code),
       explain: "'and' needs both sides true; 'or' needs at least one; 'not' flips it. Python also allows chained comparisons like a < b < c."
     };
   },
@@ -361,118 +349,73 @@ const EXAM_SLOTS = [
   { topic: "Dictionaries",                     review: "Lesson 11: Tuples & Dictionaries",          gen: GEN.funcDict }
 ];
 
-function buildExam() {
-  const questions = EXAM_SLOTS.map((slot, i) => {
-    const q = slot.gen();
-    return { ...q, slotIndex: i, topic: slot.topic, review: slot.review, points: 10 };
-  });
+async function buildExam() {
+  const questions = [];
+  for (let i = 0; i < EXAM_SLOTS.length; i++) {
+    const slot = EXAM_SLOTS[i];
+    const q = await slot.gen();
+    questions.push({ ...q, slotIndex: i, topic: slot.topic, review: slot.review, points: 10 });
+  }
   return shuffle(questions);
 }
 
-// ===== Grade a code/program answer in an isolated namespace =====
-function runExamPython(userCode, opts) {
-  if (!pyodide) return { pass: false, detail: "Python runtime not loaded yet.", output: "" };
+// ===== Grade a code/program answer (runs in the worker, isolated) =====
+async function runExamPython(userCode, opts) {
+  if (!pyReady) return { pass: false, detail: "Python runtime not loaded yet.", output: "" };
 
-  pyodide.globals.set("__user_code", userCode || "");
-  pyodide.globals.set("__test_code", opts.testCode || "");
-  pyodide.globals.set("__stdin_json", JSON.stringify(opts.stdin || []));
+  let fullCode = userCode || "";
+  if (opts.testCode) fullCode += "\n" + opts.testCode;
 
-  try {
-    pyodide.runPython(`
-import sys, io, json
-__out = io.StringIO()
-__old_stdout = sys.stdout
-sys.stdout = __out
-__ns = {}
-__it = iter(json.loads(__stdin_json))
-def __mock_input(prompt=""):
-    try:
-        return next(__it)
-    except StopIteration:
-        return ""
-__ns["input"] = __mock_input
-__exam_err = None
-__exam_result = None
-try:
-    exec(__user_code, __ns)
-    if __test_code:
-        exec(__test_code, __ns)
-        __exam_result = __ns.get("__result")
-except Exception as e:
-    __exam_err = repr(e)
-finally:
-    sys.stdout = __old_stdout
-__exam_captured = __out.getvalue()
-`);
+  const r = await runPython(fullCode, { stdin: opts.stdin || [], isolate: true });
 
-    const output = String(pyodide.globals.get("__exam_captured") ?? "");
-    const err = pyodide.globals.get("__exam_err");
-    const resultVal = pyodide.globals.get("__exam_result");
-
-    if (err) return { pass: false, detail: "Error while running your code: " + String(err), output };
-
-    if (opts.testCode) {
-      const res = resultVal == null ? "" : String(resultVal);
-      return { pass: res.startsWith("PASS"), detail: res || "No result produced.", output };
-    } else {
-      const ok = normalizeOutput(output) === normalizeOutput(opts.expected);
-      return {
-        pass: ok,
-        detail: ok ? "Output matched." : `Expected:\n${opts.expected}\n\nYour output:\n${output || "(nothing)"}`,
-        output
-      };
-    }
-  } catch (e) {
-    try { pyodide.runPython("import sys; sys.stdout = sys.__stdout__"); } catch (_) {}
-    return { pass: false, detail: "Error: " + (e.message || String(e)), output: "" };
+  if (r.timeout) {
+    return {
+      pass: false,
+      detail: "⏱ Stopped after 10 seconds — likely an infinite loop. Check your loop's exit condition and try again.",
+      output: ""
+    };
   }
+  if (r.error) {
+    return { pass: false, detail: "Error while running your code: " + r.error.split("\n").pop(), output: r.output };
+  }
+
+  if (opts.testCode) {
+    const res = r.result == null ? "" : String(r.result);
+    return { pass: res.startsWith("PASS"), detail: res || "No result produced.", output: r.output };
+  }
+  const ok = normalizeOutput(r.output) === normalizeOutput(opts.expected);
+  return {
+    pass: ok,
+    detail: ok ? "Output matched." : `Expected:\n${opts.expected}\n\nYour output:\n${r.output || "(nothing)"}`,
+    output: r.output
+  };
 }
 
 // ===== Run user code just to show its output (no grading) =====
-function runUserOutput(userCode, stdin) {
-  if (!pyodide) return { output: "", error: "Python runtime not loaded yet." };
-  pyodide.globals.set("__user_code", userCode || "");
-  pyodide.globals.set("__stdin_json", JSON.stringify(stdin || []));
-  try {
-    pyodide.runPython(`
-import sys, io, json
-__out = io.StringIO()
-__old_stdout = sys.stdout
-sys.stdout = __out
-__ns = {}
-__it = iter(json.loads(__stdin_json))
-def __mock_input(prompt=""):
-    try:
-        return next(__it)
-    except StopIteration:
-        return ""
-__ns["input"] = __mock_input
-__run_err = None
-try:
-    exec(__user_code, __ns)
-except Exception as e:
-    __run_err = repr(e)
-finally:
-    sys.stdout = __old_stdout
-__run_out = __out.getvalue()
-`);
-    const output = String(pyodide.globals.get("__run_out") ?? "");
-    const err = pyodide.globals.get("__run_err");
-    return { output, error: err ? String(err) : null };
-  } catch (e) {
-    try { pyodide.runPython("import sys; sys.stdout = sys.__stdout__"); } catch (_) {}
-    return { output: "", error: e.message || String(e) };
+async function runUserOutput(userCode, stdin) {
+  if (!pyReady) return { output: "", error: "Python runtime not loaded yet." };
+  const r = await runPython(userCode || "", { stdin: stdin || [], isolate: true });
+  if (r.timeout) {
+    return {
+      output: "",
+      error: "⏱ Stopped after 10 seconds — this looks like an infinite loop! Check your loop's exit condition and run again."
+    };
   }
+  return { output: r.output, error: r.error };
 }
 
-function runQuestionCode(idx) {
+async function runQuestionCode(idx) {
   const q = examState.questions[idx];
   const el = document.getElementById(`examCode_${idx}`);
   const out = document.getElementById(`examRun_${idx}`);
   if (!el || !out) return;
 
+  out.style.display = "block";
+  out.className = "exam-run-output";
+  out.innerHTML = `<div class="exam-run-label">Running...</div>`;
+
   const stdin = q.type === "program" ? (q.stdin || []) : [];
-  const r = runUserOutput(el.value, stdin);
+  const r = await runUserOutput(el.value, stdin);
 
   out.style.display = "block";
   out.className = "exam-run-output" + (r.error ? " error" : "");
@@ -505,13 +448,13 @@ function resetQuestionCode(idx) {
 }
 
 // ===== Start / Render =====
-function startExam() {
-  if (!pyodide) {
+async function startExam() {
+  if (!pyReady) {
     alert("The Python runtime is still loading — give it a few seconds, then try again.");
     return;
   }
 
-  examState = { questions: buildExam(), answers: {}, submitted: false };
+  examState = { questions: await buildExam(), answers: {}, submitted: false };
 
   document.getElementById("welcomeScreen").style.display = "none";
   document.getElementById("lessonView").style.display = "none";
@@ -628,7 +571,7 @@ function submitExam(skipConfirm) {
   const submitBtn = document.getElementById("examSubmitBtn");
   if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Grading..."; }
 
-  setTimeout(() => showResults(gradeExam()), 50);
+  setTimeout(async () => showResults(await gradeExam()), 50);
 }
 
 function countAnswered() {
@@ -636,7 +579,7 @@ function countAnswered() {
 }
 
 // Grade a single question. Returns { pass, detail }.
-function gradeOne(q, idx) {
+async function gradeOne(q, idx) {
   if (q.type === "mc") {
     const sel = examState.answers[idx];
     const pass = sel === q.correct;
@@ -649,7 +592,7 @@ function gradeOne(q, idx) {
   } else {
     const el = document.getElementById(`examCode_${idx}`);
     const userCode = el ? el.value : "";
-    const r = runExamPython(userCode, q.type === "program"
+    const r = await runExamPython(userCode, q.type === "program"
       ? { stdin: q.stdin, expected: q.expected }
       : { testCode: q.testCode });
     return { pass: r.pass, detail: r.detail };
@@ -668,7 +611,7 @@ function isAttempted(q, idx) {
 }
 
 // Check a single question and show inline feedback.
-function checkQuestion(idx) {
+async function checkQuestion(idx) {
   const q = examState.questions[idx];
   const fb = document.getElementById(`examFb_${idx}`);
   if (!fb) return;
@@ -680,7 +623,11 @@ function checkQuestion(idx) {
     return;
   }
 
-  const res = gradeOne(q, idx);
+  fb.style.display = "block";
+  fb.className = "exam-q-feedback neutral";
+  fb.innerHTML = `<div class="exam-fb-head">Checking...</div>`;
+
+  const res = await gradeOne(q, idx);
   fb.style.display = "block";
   fb.className = "exam-q-feedback " + (res.pass ? "correct" : "incorrect");
   let html = `<div class="exam-fb-head">${res.pass ? "✓ Correct!" : "✗ Not quite."}</div>`;
@@ -691,14 +638,15 @@ function checkQuestion(idx) {
   fb.innerHTML = html;
 }
 
-function gradeExam() {
+async function gradeExam() {
   const details = [];
   let score = 0;
-  examState.questions.forEach((q, idx) => {
-    const res = gradeOne(q, idx);
+  for (let idx = 0; idx < examState.questions.length; idx++) {
+    const q = examState.questions[idx];
+    const res = await gradeOne(q, idx);
     if (res.pass) score += q.points;
     details.push({ q, idx, pass: res.pass, detail: res.detail });
-  });
+  }
   return { score, details };
 }
 
