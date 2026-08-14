@@ -329,3 +329,10 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-he
 .sync-status.warn{color:var(--yellow)}
 .sync-btn{width:100%;padding:.45rem;background:var(--surface3);border:1px solid var(--border);color:var(--text-muted);border-radius:var(--radius);cursor:pointer;font-size:.75rem;transition:all .15s}
 .sync-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ===== Per-lesson completion toggle ===== */
+.nav-check.toggleable{cursor:pointer;border-radius:4px;transition:all .12s}
+.nav-check.toggleable:hover{background:var(--red-bg);color:var(--red)!important;transform:scale(1.15)}
+.complete-toggle{font-size:.82rem;opacity:.85}
+.complete-toggle.is-complete{border-color:var(--green);color:var(--green)}
+.complete-toggle.is-complete:hover{border-color:var(--red);color:var(--red)}

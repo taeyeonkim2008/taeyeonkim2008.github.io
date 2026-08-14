@@ -37,10 +37,19 @@ function saveProgress() {
 }
 
 function markComplete(lessonId) {
-  progress[lessonId] = true;
+  setComplete(lessonId, true);
+}
+
+// Set (or clear) a single lesson's completion without touching anything else.
+// NOTE: we store an explicit `false` rather than deleting the key. The cloud
+// sync merges completed lessons as a union, so a missing key would get
+// resurrected from the other device on the next pull — an explicit false wins.
+function setComplete(lessonId, done) {
+  progress[lessonId] = !!done;
   saveProgress();
   updateGlobalProgress();
   renderNav();
+  updateCompleteToggle();
 }
 
 function updateGlobalProgress() {
@@ -62,15 +71,32 @@ function updateWelcomeStats() {
   document.getElementById("totalExercises").textContent = numerics;
 }
 
+
+// Reflects the current lesson's completion state on the footer toggle button.
+function updateCompleteToggle() {
+  const btn = document.getElementById("completeToggle");
+  if (!btn || currentLesson < 0 || !LESSONS[currentLesson]) return;
+  const done = !!progress[LESSONS[currentLesson].id];
+  btn.textContent = done ? "\u2713 Completed \u2014 click to undo" : "Mark as complete";
+  btn.classList.toggle("is-complete", done);
+}
+
 // ===== Navigation =====
 function renderNav() {
   const nav = document.getElementById("lessonNav");
   nav.innerHTML = "";
   LESSONS.forEach((lesson, i) => {
     const li = document.createElement("li");
-    li.className = (i === currentLesson ? "active" : "") + (progress[lesson.id] ? " completed" : "");
-    li.innerHTML = `<span class="nav-check">${progress[lesson.id] ? "&#10003;" : (i + 1)}</span><span class="nav-label">${lesson.title}</span>`;
+    const done = !!progress[lesson.id];
+    li.className = (i === currentLesson ? "active" : "") + (done ? " completed" : "");
+    li.innerHTML = `<span class="nav-check${done ? " toggleable" : ""}"${done ? ' title="Click to mark as not complete"' : ""}>${done ? "&#10003;" : (i + 1)}</span><span class="nav-label">${lesson.title}</span>`;
     li.addEventListener("click", () => showLesson(i));
+    if (done) {
+      li.querySelector(".nav-check").addEventListener("click", (e) => {
+        e.stopPropagation();          // un-check instead of navigating
+        setComplete(lesson.id, false);
+      });
+    }
     nav.appendChild(li);
   });
 }
@@ -101,6 +127,13 @@ function setupEventListeners() {
   document.getElementById("sidebarToggle").addEventListener("click", () => {
     document.getElementById("sidebar").classList.toggle("open");
   });
+  const completeToggle = document.getElementById("completeToggle");
+  if (completeToggle) {
+    completeToggle.addEventListener("click", () => {
+      const id = LESSONS[currentLesson].id;
+      setComplete(id, !progress[id]);
+    });
+  }
 }
 
 // ===== Lesson Rendering =====
@@ -125,6 +158,7 @@ function showLesson(index) {
 
   renderMath(body);
   renderNav();
+  updateCompleteToggle();
   document.getElementById("sidebar").classList.remove("open");
   window.scrollTo(0, 0);
 }

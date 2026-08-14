@@ -285,3 +285,10 @@ body{font-family:var(--font-sans);background:var(--bg);color:var(--text);line-he
 /* KaTeX sizing inside content */
 .lesson-body .katex{font-size:1.05em}
 .formula-box .katex-display{margin:.4rem 0}
+
+/* ===== Per-lesson completion toggle ===== */
+.nav-check.toggleable{cursor:pointer;border-radius:4px;transition:all .12s}
+.nav-check.toggleable:hover{background:var(--red-bg);color:var(--red)!important;transform:scale(1.15)}
+.complete-toggle{font-size:.82rem;opacity:.85}
+.complete-toggle.is-complete{border-color:var(--green);color:var(--green)}
+.complete-toggle.is-complete:hover{border-color:var(--red);color:var(--red)}

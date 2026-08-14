@@ -1,0 +1,94 @@
+{
+  "expo": {
+    "name": "Stop Nap",
+    "slug": "stop-nap",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "stopnap",
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.stopnap.app",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "location",
+          "audio",
+          "fetch"
+        ],
+        "NSLocationWhenInUseUsageDescription": "Stop Nap uses your location to tell how far you are from your stop.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Stop Nap needs location access at all times so the alarm can wake you while your phone is locked and in your pocket. This is the whole point of the app — with 'While Using' only, it cannot wake you.",
+        "NSLocationAlwaysUsageDescription": "Stop Nap needs location access at all times so the alarm can wake you while your phone is locked and in your pocket.",
+        "NSMotionUsageDescription": "Motion data helps Stop Nap estimate your speed when GPS is unavailable underground."
+      },
+      "entitlements": {
+        "com.apple.developer.usernotifications.time-sensitive": true
+      }
+    },
+    "android": {
+      "package": "com.stopnap.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png",
+        "backgroundColor": "#0B1020"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "POST_NOTIFICATIONS"
+      ]
+    },
+    "plugins": [
+      "./plugins/withStopNapAndroid",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Stop Nap needs location access at all times so the alarm can wake you while your phone is locked.",
+          "locationWhenInUsePermission": "Stop Nap uses your location to tell how far you are from your stop.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "enableBackgroundPlayback": true,
+          "microphonePermission": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#DC2626",
+          "sounds": [
+            "./assets/audio/alarm.wav"
+          ]
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "minSdkVersion": 26
+          }
+        }
+      ],
+      "expo-sqlite",
+      "expo-asset",
+      "expo-system-ui",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "resizeMode": "contain",
+          "backgroundColor": "#0B1020"
+        }
+      ]
+    ]
+  }
+}
