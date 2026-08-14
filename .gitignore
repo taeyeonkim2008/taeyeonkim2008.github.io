@@ -2,3 +2,4 @@
 .DS_Store
 realtime-subtitles/
 start-server.command
+stop-nap/
