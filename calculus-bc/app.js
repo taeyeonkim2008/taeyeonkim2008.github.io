@@ -263,6 +263,49 @@ function createQuiz(section, uid) {
   return container;
 }
 
+// ===== Answer parsing =====
+// Students write exact answers, not just decimals: 14/3, pi/2, 2sqrt(3), 3^2.
+// Parse those into a number. Returns NaN if the input isn't a valid expression.
+// Only digits, operators, parentheses and the tokens pi / e / sqrt are allowed
+// through, so nothing else can reach the evaluator.
+function parseAnswer(raw) {
+  let s = String(raw).trim().toLowerCase();
+  if (!s) return NaN;
+
+  s = s.replace(/,/g, "");                      // 1,000
+
+  // plain number (incl. scientific notation) — the common case
+  const direct = Number(s);
+  if (isFinite(direct)) return direct;
+
+  s = s.replace(/[×·]/g, "*")         // × ·
+       .replace(/÷/g, "/")                 // ÷
+       .replace(/[−–—]/g, "-")   // unicode minus / dashes
+       .replace(/π/g, "pi")                // π
+       .replace(/√\s*(\d+(?:\.\d+)?)/g, "sqrt($1)")  // √2
+       .replace(/√/g, "sqrt")              // √(...)
+       .replace(/\^/g, "**");
+
+  // implicit multiplication: 2pi, 3sqrt(2), 2(1+3), pi e
+  s = s.replace(/(\d)\s*(pi\b|e\b|sqrt\b|\()/g, "$1*$2");
+  s = s.replace(/(pi\b|\))\s*(\d|pi\b|e\b|sqrt\b|\()/g, "$1*$2");
+
+  // whitelist: blank out known tokens, then allow only safe characters
+  const probe = s.replace(/pi/g, "#").replace(/sqrt/g, "#").replace(/\be\b/g, "#");
+  if (!/^[0-9#+\-*/().\s]+$/.test(probe)) return NaN;
+
+  const expr = s.replace(/\bpi\b/g, "Math.PI")
+                .replace(/\bsqrt\b/g, "Math.sqrt")
+                .replace(/\be\b/g, "Math.E");
+
+  try {
+    const v = Function('"use strict"; return (' + expr + ');')();
+    return typeof v === "number" && isFinite(v) ? v : NaN;
+  } catch (_) {
+    return NaN;
+  }
+}
+
 // ===== Numeric Free Response =====
 function createNumeric(section, uid) {
   const container = document.createElement("div");
@@ -271,7 +314,7 @@ function createNumeric(section, uid) {
     <div class="numeric-head">🧮 Free Response</div>
     <div class="numeric-prompt">${section.prompt}</div>
     <div class="numeric-row">
-      <input type="text" class="numeric-input" placeholder="Your answer..." spellcheck="false" autocomplete="off">
+      <input type="text" class="numeric-input" placeholder="e.g. 4.667 or 14/3" spellcheck="false" autocomplete="off">
       <button class="numeric-check-btn">Check</button>
     </div>
     <div class="numeric-feedback"></div>
@@ -292,12 +335,12 @@ function createNumeric(section, uid) {
   }
 
   function check() {
-    const raw = input.value.trim().replace(/,/g, "");
+    const raw = input.value.trim();
     if (!raw) return;
-    const val = parseFloat(raw);
+    const val = parseAnswer(raw);
     if (isNaN(val)) {
       feedback.className = "numeric-feedback visible fail";
-      feedback.textContent = "Enter a number (decimals are fine).";
+      feedback.textContent = "Couldn't read that. Try a decimal (4.667), a fraction (14/3), or an exact form (pi/2, 2sqrt(3)).";
       return;
     }
     if (Math.abs(val - section.answer) <= section.tolerance) {
