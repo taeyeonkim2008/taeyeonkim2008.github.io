@@ -314,8 +314,8 @@ const LESSONS = [
 <p>A vector-valued function packages a parametric curve into one object: \(\vec{r}(t) = \langle x(t),\, y(t)\rangle\). Differentiation is component-by-component — and the derivatives have physical names:</p>
 <ul>
 <li>\(\vec{r}(t)\) — position</li>
-<li>\(\vec{r}\,'(t) = \vec{v}(t) = \langle x'(t), y'(t)\rangle\) — velocity</li>
-<li>\(\vec{r}\,''(t) = \vec{a}(t)\) — acceleration</li>
+<li>\(\vec{r}\,{}'(t) = \vec{v}(t) = \langle x'(t), y'(t)\rangle\) — velocity</li>
+<li>\(\vec{r}\,{}''(t) = \vec{a}(t)\) — acceleration</li>
 <li>\(|\vec{v}(t)| = \sqrt{x'(t)^2 + y'(t)^2}\) — <strong>speed</strong> (a scalar!)</li>
 </ul>` },
       { type: "example",
@@ -323,7 +323,7 @@ const LESSONS = [
         solution: R`<p>Differentiate each component: \(\vec{v}(t) = \langle 2t,\ \frac{1}{t}\rangle\).</p>
 <p>At \(t=1\): \(\vec{v}(1) = \langle 2,\ 1\rangle\), with speed \(\sqrt{4+1} = \sqrt{5}\).</p>` },
       { type: "quiz",
-        question: R`If \(\vec{r}(t) = \langle \cos t,\ t^2 \rangle\), then \(\vec{r}\,'(t) =\)`,
+        question: R`If \(\vec{r}(t) = \langle \cos t,\ t^2 \rangle\), then \(\vec{r}\,{}'(t) =\)`,
         options: [ R`\(\langle \sin t,\ 2t\rangle\)`, R`\(\langle -\sin t,\ 2t\rangle\)`, R`\(\langle -\sin t,\ t^3/3\rangle\)`, R`\(\langle \cos t,\ 2\rangle\)` ],
         correct: 1,
         explanation: R`Differentiate componentwise: \(\frac{d}{dt}\cos t = -\sin t\) and \(\frac{d}{dt}t^2 = 2t\).` },
@@ -360,7 +360,7 @@ const LESSONS = [
         explanation: R`First component: \(\sin\pi - \sin 0 = 0\). Second: \(\pi - 0 = \pi\).` },
       { type: "quiz",
         question: R`To find a particle's position at \(t = 5\) given \(\vec{v}(t)\) and \(\vec{r}(0)\), compute:`,
-        options: [ R`\(\vec{v}(5) \cdot 5\)`, R`\(\vec{r}(0) + \int_0^5 \vec{v}(t)\,dt\)`, R`\(\int_0^5 |\vec{v}(t)|\,dt\)`, R`\(\vec{v}\,'(5)\)` ],
+        options: [ R`\(\vec{v}(5) \cdot 5\)`, R`\(\vec{r}(0) + \int_0^5 \vec{v}(t)\,dt\)`, R`\(\int_0^5 |\vec{v}(t)|\,dt\)`, R`\(\vec{v}\,{}'(5)\)` ],
         correct: 1,
         explanation: R`Position = initial position + accumulated displacement. (Choice C — integrating speed — gives total <em>distance</em>, not position.)` },
       { type: "numeric",
