@@ -20,6 +20,7 @@
         <div class="progress-bar" id="globalProgress"></div>
         <span class="progress-label" id="progressLabel">0% complete</span>
       </div>
+      <button class="review-btn" id="reviewBtn">🧠 Course Review</button>
       <ul class="lesson-nav" id="lessonNav"></ul>
       <div class="sidebar-footer">
         <button class="reset-btn" id="resetProgress">Reset Progress</button>
@@ -54,6 +55,7 @@
             </div>
           </div>
           <button class="start-btn" id="startBtn">Start Learning</button>
+          <button class="review-link-btn" id="reviewWelcomeBtn">Or practice Topics 6.11-8.13 &rarr;</button>
         </div>
       </div>
 
@@ -69,12 +71,15 @@
           <button class="nav-btn next-btn" id="nextBtn">Next Topic</button>
         </div>
       </div>
+
+      <div id="reviewView" class="review-view" style="display:none"></div>
     </main>
   </div>
 
   <script src="topics-a.js"></script>
   <script src="topics-b.js"></script>
   <script src="app.js"></script>
+  <script src="review.js"></script>
   <script src="sync.js"></script>
 </body>
 </html>
