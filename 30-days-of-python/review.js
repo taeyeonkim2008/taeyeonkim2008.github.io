@@ -406,6 +406,10 @@ function rvAttempted(q, idx) {
 }
 
 // ---------- rendering ----------
+// Deliberately reuses the app's own components — .lesson-header, .quiz-container,
+// .exercise-container, .editor-container, .nav-btn — so review looks like the
+// lessons rather than a bolted-on second UI.
+
 function openReview() {
   document.getElementById("welcomeScreen").style.display = "none";
   document.getElementById("lessonView").style.display = "none";
@@ -416,161 +420,196 @@ function openReview() {
   window.scrollTo(0, 0);
 }
 
+function reviewHeader(badge, title, sub) {
+  return `<div class="lesson-header">
+      <span class="lesson-badge">${rvEsc(badge)}</span>
+      <h2 class="lesson-title">${rvEsc(title)}</h2>
+    </div>${sub ? `<p class="rv-sub">${sub}</p>` : ""}`;
+}
+
 function renderReviewMenu() {
   let best = 0;
   try { best = parseInt(localStorage.getItem(REVIEW_BEST_KEY)) || 0; } catch (_) {}
-  const view = document.getElementById("reviewView");
-  view.innerHTML = `
-    <div class="rv-head">
-      <span class="rv-badge">Course Review</span>
-      <h2 class="rv-title">Intro Programming — Practice</h2>
-      <p class="rv-sub">Coding problems graded by hidden tests, plus output-tracing questions.
-      Covers the whole course, including <strong>recursion</strong> and <strong>algorithms</strong> —
-      the two topics the day-by-day lessons don't teach.
-      ${best ? `<br><span class="rv-best">Best full-exam score: ${best}%</span>` : ""}</p>
+
+  document.getElementById("reviewView").innerHTML =
+    reviewHeader("Course Review", "Intro Programming Practice",
+      `Coding problems graded by hidden tests, plus output-tracing questions — covering the whole course,
+       including <strong>recursion</strong> and <strong>algorithms</strong>, which the daily lessons don't teach.
+       ${best ? `<br>Best full-exam score: <strong>${best}%</strong>` : ""}`) + `
+
+    <div class="concept-block rv-mode-card" id="rvFullBtn" role="button" tabindex="0">
+      <h4>Full Mock Exam</h4>
+      <p>15 questions — one from every topic. Scored, with a report of what to review.</p>
+    </div>
+    <div class="concept-block rv-mode-card" id="rvQuickBtn" role="button" tabindex="0">
+      <h4>Quick Quiz</h4>
+      <p>6 random questions for a fast check-in.</p>
     </div>
 
-    <div class="rv-modes">
-      <button class="rv-mode-btn primary" id="rvFullBtn">
-        <span class="rv-mode-title">Full Mock Exam</span>
-        <span class="rv-mode-desc">15 questions — one from every topic. Scored, with a weak-spot report.</span>
-      </button>
-      <button class="rv-mode-btn" id="rvQuickBtn">
-        <span class="rv-mode-title">Quick Quiz</span>
-        <span class="rv-mode-desc">6 random questions for a fast check-in.</span>
-      </button>
-    </div>
-
-    <h3 class="rv-drill-title">Or drill one topic</h3>
-    <p class="rv-drill-sub">LeetCode style — pick an area and work problems from it.</p>
-    <div class="rv-topic-grid">
+    <h3>Drill one topic</h3>
+    <p>Pick an area and work through problems from it.</p>
+    <div class="rv-topics">
       ${REVIEW_TOPICS.map(t => `
-        <button class="rv-topic-btn" data-topic="${t.id}">
-          <span class="rv-topic-name">${t.name}</span>
-          <span class="rv-topic-day">${t.review}</span>
-        </button>`).join("")}
+        <div class="rv-topic" data-topic="${t.id}" role="button" tabindex="0">
+          <span class="rv-topic-name">${rvEsc(t.name)}</span>
+          <span class="rv-topic-day">${rvEsc(t.review)}</span>
+        </div>`).join("")}
     </div>
-    <div class="rv-footer-actions">
-      <button class="rv-quit-btn" id="rvBackBtn">Back to Lessons</button>
-    </div>
-  `;
 
-  document.getElementById("rvFullBtn").addEventListener("click", () => startReview(REVIEW_TOPICS.map(t => t.id), 1, "Full Mock Exam"));
-  document.getElementById("rvQuickBtn").addEventListener("click", () => {
-    const some = rvShuffle(REVIEW_TOPICS.map(t => t.id)).slice(0, 6);
-    startReview(some, 1, "Quick Quiz");
-  });
-  view.querySelectorAll(".rv-topic-btn").forEach(b =>
-    b.addEventListener("click", () => {
-      const t = REVIEW_TOPICS.find(x => x.id === b.dataset.topic);
-      startReview([t.id], Math.min(3, t.make.length), t.name + " Drill");
-    }));
+    <div class="lesson-nav-buttons">
+      <button class="nav-btn" id="rvBackBtn">Back to Lessons</button>
+    </div>`;
+
+  const go = (el, fn) => {
+    el.addEventListener("click", fn);
+    el.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fn(); } });
+  };
+  go(document.getElementById("rvFullBtn"), () => startReview(REVIEW_TOPICS.map(t => t.id), 1, "Full Mock Exam"));
+  go(document.getElementById("rvQuickBtn"), () => startReview(rvShuffle(REVIEW_TOPICS.map(t => t.id)).slice(0, 6), 1, "Quick Quiz"));
+  document.querySelectorAll(".rv-topic").forEach(el => go(el, () => {
+    const t = REVIEW_TOPICS.find(x => x.id === el.dataset.topic);
+    startReview([t.id], Math.min(3, t.make.length), t.name);
+  }));
   document.getElementById("rvBackBtn").addEventListener("click", closeReview);
 }
 
 async function startReview(topicIds, perTopic, label) {
   if (!pyReady) { alert("The Python runtime is still loading — give it a few seconds and try again."); return; }
-  const view = document.getElementById("reviewView");
-  view.innerHTML = `<div class="rv-loading">Generating problems…</div>`;
+  document.getElementById("reviewView").innerHTML =
+    reviewHeader("Course Review", label, "Building your problems…");
   const questions = await buildReview(topicIds, perTopic);
   reviewState = { questions, answers: {}, submitted: false, label, isFull: label === "Full Mock Exam" };
   renderReview();
   window.scrollTo(0, 0);
 }
 
+// A code question, built exactly like a lesson exercise.
+function reviewCodeCard(q, i) {
+  return `<div class="exercise-container">
+      <div class="exercise-header">
+        <span class="exercise-icon">&#128187;</span>
+        <span class="exercise-label">Q${i + 1} &middot; ${rvEsc(q.topic)}</span>
+      </div>
+      <div class="exercise-prompt">${q.prompt}</div>
+      <div class="editor-container" style="margin:0;border-radius:0;border-left:0;border-right:0;border-bottom:0">
+        <div class="editor-header">
+          <span class="editor-title"><span class="editor-dot"></span> Your Solution</span>
+          <div class="editor-actions">
+            <button class="reset-code-btn" data-rv-reset="${i}">Reset</button>
+            <button class="run-btn" data-rv-run="${i}">Run &#9654;</button>
+            <button class="run-btn" data-rv-check="${i}" style="background:var(--accent);color:#00222b">Check &#10003;</button>
+          </div>
+        </div>
+        <textarea class="code-input" id="rvCode_${i}" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">${rvEsc(q.starter || "")}</textarea>
+        <div class="output-container" id="rvOut_${i}">
+          <div class="output-label">Output</div>
+          <pre class="output-text" id="rvOutText_${i}"></pre>
+        </div>
+      </div>
+      <div class="exercise-result" id="rvFb_${i}"></div>
+    </div>`;
+}
+
+// Multiple choice and output-tracing, built like a lesson quiz.
+function reviewQuizCard(q, i) {
+  const body = q.type === "mc"
+    ? `<div class="quiz-options">${q.options.map((o, oi) =>
+        `<div class="quiz-option" data-q="${i}" data-o="${oi}">${rvEsc(o)}</div>`).join("")}</div>`
+    : `<input type="text" class="code-input rv-answer" id="rvIn_${i}" placeholder="Type the exact output…" spellcheck="false" autocomplete="off">`;
+  return `<div class="quiz-container">
+      <div class="rv-q-label">Q${i + 1} &middot; ${rvEsc(q.topic)}</div>
+      <div class="quiz-question">${q.prompt}</div>
+      ${q.code ? `<div class="code-block">${rvEsc(q.code)}</div>` : ""}
+      ${body}
+      <div class="quiz-feedback" id="rvFb_${i}"></div>
+      <button class="quiz-submit" data-rv-check="${i}">Check Answer</button>
+    </div>`;
+}
+
 function renderReview() {
-  const view = document.getElementById("reviewView");
   const qs = reviewState.questions;
-  let h = `
-    <div class="rv-head">
-      <span class="rv-badge">${rvEsc(reviewState.label)}</span>
-      <h2 class="rv-title">${qs.length} question${qs.length > 1 ? "s" : ""}</h2>
-      <p class="rv-sub">Check each answer as you go, or submit at the end for a score. No timer.</p>
-    </div>`;
+  document.getElementById("reviewView").innerHTML =
+    reviewHeader("Course Review", reviewState.label,
+      `${qs.length} question${qs.length > 1 ? "s" : ""} — check them as you go, or submit at the end for a score.`) +
+    qs.map((q, i) => q.type === "code" ? reviewCodeCard(q, i) : reviewQuizCard(q, i)).join("") +
+    `<div class="lesson-nav-buttons">
+       <button class="nav-btn" id="rvQuit">Back to Menu</button>
+       <button class="nav-btn next-btn" id="rvSubmit">Submit &amp; Score</button>
+     </div>`;
 
-  qs.forEach((q, i) => {
-    h += `<div class="rv-q" id="rvQ_${i}">
-      <div class="rv-q-head"><span class="rv-q-num">Q${i + 1}</span><span class="rv-q-topic">${rvEsc(q.topic)}</span></div>
-      <div class="rv-q-prompt">${q.prompt}</div>`;
-    if (q.code) h += `<pre class="rv-code">${rvEsc(q.code)}</pre>`;
-    if (q.type === "mc") {
-      h += `<div class="rv-options">` + q.options.map((o, oi) =>
-        `<div class="rv-option" data-q="${i}" data-o="${oi}">${rvEsc(o)}</div>`).join("") + `</div>`;
-    } else if (q.type === "predict") {
-      h += `<input type="text" class="rv-input" id="rvIn_${i}" placeholder="Type the exact output…" spellcheck="false" autocomplete="off">`;
-    } else {
-      h += `<textarea class="rv-code-input" id="rvCode_${i}" spellcheck="false" autocomplete="off" autocorrect="off" autocapitalize="off">${rvEsc(q.starter || "")}</textarea>`;
-    }
-    h += `<div class="rv-actions">`;
-    if (q.type === "code") h += `<button class="rv-run" data-q="${i}">Run &#9654;</button><button class="rv-reset" data-q="${i}">Reset</button>`;
-    h += `<button class="rv-check" data-q="${i}">Check answer</button></div>`;
-    if (q.type === "code") h += `<div class="rv-out" id="rvOut_${i}" style="display:none"></div>`;
-    h += `<div class="rv-fb" id="rvFb_${i}" style="display:none"></div></div>`;
-  });
-
-  h += `<div class="rv-footer-actions">
-      <button class="rv-submit" id="rvSubmit">Submit &amp; Score</button>
-      <button class="rv-quit-btn" id="rvQuit">Back to Menu</button>
-    </div>`;
-  view.innerHTML = h;
-
-  view.querySelectorAll(".rv-option").forEach(o => o.addEventListener("click", () => {
-    if (o.classList.contains("locked")) return;
+  const view = document.getElementById("reviewView");
+  view.querySelectorAll(".quiz-option").forEach(o => o.addEventListener("click", () => {
+    if (o.classList.contains("disabled")) return;
     const qi = o.dataset.q;
-    view.querySelectorAll(`.rv-option[data-q="${qi}"]`).forEach(x => x.classList.remove("sel"));
-    o.classList.add("sel");
+    view.querySelectorAll(`.quiz-option[data-q="${qi}"]`).forEach(x => x.classList.remove("selected"));
+    o.classList.add("selected");
     reviewState.answers[qi] = parseInt(o.dataset.o);
   }));
-  view.querySelectorAll(".rv-code-input").forEach(ta => ta.addEventListener("keydown", e => {
+  view.querySelectorAll("textarea.code-input").forEach(ta => ta.addEventListener("keydown", e => {
     if (e.key === "Tab") { e.preventDefault();
       const s = ta.selectionStart, en = ta.selectionEnd;
       ta.value = ta.value.slice(0, s) + "    " + ta.value.slice(en);
       ta.selectionStart = ta.selectionEnd = s + 4; }
   }));
-  view.querySelectorAll(".rv-run").forEach(b => b.addEventListener("click", () => rvRun(+b.dataset.q)));
-  view.querySelectorAll(".rv-reset").forEach(b => b.addEventListener("click", () => rvReset(+b.dataset.q)));
-  view.querySelectorAll(".rv-check").forEach(b => b.addEventListener("click", () => rvCheck(+b.dataset.q)));
+  view.querySelectorAll("[data-rv-run]").forEach(b => b.addEventListener("click", () => rvRun(+b.dataset.rvRun)));
+  view.querySelectorAll("[data-rv-reset]").forEach(b => b.addEventListener("click", () => rvReset(+b.dataset.rvReset)));
+  view.querySelectorAll("[data-rv-check]").forEach(b => b.addEventListener("click", () => rvCheck(+b.dataset.rvCheck)));
   document.getElementById("rvSubmit").addEventListener("click", rvSubmit);
   document.getElementById("rvQuit").addEventListener("click", renderReviewMenu);
 }
 
+function rvShowOutput(i, text, isError) {
+  document.getElementById(`rvOut_${i}`).classList.add("visible");
+  const pre = document.getElementById(`rvOutText_${i}`);
+  pre.textContent = text;
+  pre.className = "output-text" + (isError ? " error" : "");
+}
+
 async function rvRun(i) {
-  const ta = document.getElementById(`rvCode_${i}`);
-  const out = document.getElementById(`rvOut_${i}`);
-  out.style.display = "block";
-  out.className = "rv-out";
-  out.innerHTML = `<div class="rv-out-label">Running…</div>`;
-  const r = await runPython(ta.value, { isolate: true });
-  if (r.timeout) { out.className = "rv-out err"; out.innerHTML = `<div class="rv-out-label">Output</div><pre class="rv-out-text err">Stopped after 10 seconds — this looks like an infinite loop.</pre>`; return; }
-  if (r.error) { out.className = "rv-out err"; out.innerHTML = `<div class="rv-out-label">Output</div><pre class="rv-out-text err">${rvEsc(r.error)}</pre>`; return; }
-  out.innerHTML = `<div class="rv-out-label">Output</div><pre class="rv-out-text">${r.output ? rvEsc(r.output) : "(no output — add print(...) to see values, or Check answer to test it)"}</pre>`;
+  const btn = document.querySelector(`[data-rv-run="${i}"]`);
+  const label = btn.innerHTML;
+  btn.disabled = true; btn.textContent = "Running...";
+  const r = await runPython(document.getElementById(`rvCode_${i}`).value, { isolate: true });
+  if (r.timeout) rvShowOutput(i, "Stopped after 10 seconds — this looks like an infinite loop.", true);
+  else if (r.error) rvShowOutput(i, r.error, true);
+  else rvShowOutput(i, r.output || "(no output — add print(...) to see values, or press Check to test it)", false);
+  btn.disabled = false; btn.innerHTML = label;
 }
 
 function rvReset(i) {
-  const q = reviewState.questions[i];
-  document.getElementById(`rvCode_${i}`).value = q.starter || "";
-  const o = document.getElementById(`rvOut_${i}`); if (o) { o.style.display = "none"; o.innerHTML = ""; }
-  const f = document.getElementById(`rvFb_${i}`); f.style.display = "none"; f.innerHTML = "";
+  document.getElementById(`rvCode_${i}`).value = reviewState.questions[i].starter || "";
+  document.getElementById(`rvOut_${i}`).classList.remove("visible");
+  const fb = document.getElementById(`rvFb_${i}`);
+  fb.classList.remove("visible", "pass", "fail");
+  fb.textContent = "";
+}
+
+function rvSetFeedback(i, q, res) {
+  const fb = document.getElementById(`rvFb_${i}`);
+  if (q.type === "code") {
+    fb.className = "exercise-result visible " + (res.pass ? "pass" : "fail");
+    fb.innerHTML = res.pass ? "Correct — all tests passed."
+      : `${rvEsc(res.detail)}<div class="rv-hint"><strong>Hint:</strong> ${q.explain}</div>`;
+  } else {
+    fb.className = "quiz-feedback visible " + (res.pass ? "correct-fb" : "incorrect-fb");
+    fb.innerHTML = res.pass ? "Correct!"
+      : `${rvEsc(res.detail)}<div class="rv-hint"><strong>Hint:</strong> ${q.explain}</div>`;
+  }
 }
 
 async function rvCheck(i) {
   const q = reviewState.questions[i];
   const fb = document.getElementById(`rvFb_${i}`);
   if (!rvAttempted(q, i)) {
-    fb.style.display = "block"; fb.className = "rv-fb neutral";
-    fb.innerHTML = `<div class="rv-fb-head">Give it a try first, then check.</div>`;
+    fb.className = (q.type === "code" ? "exercise-result visible fail" : "quiz-feedback visible incorrect-fb");
+    fb.textContent = "Give it a try first, then check.";
     return;
   }
-  fb.style.display = "block"; fb.className = "rv-fb neutral";
-  fb.innerHTML = `<div class="rv-fb-head">Checking…</div>`;
-  const r = await rvGradeOne(q, i);
-  fb.className = "rv-fb " + (r.pass ? "ok" : "no");
-  let html = `<div class="rv-fb-head">${r.pass ? "✓ Correct!" : "✗ Not quite."}</div>`;
-  if (!r.pass) {
-    html += `<div class="rv-fb-detail">${rvEsc(r.detail)}</div>`;
-    html += `<div class="rv-fb-hint"><strong>Hint:</strong> ${q.explain}</div>`;
-  }
-  fb.innerHTML = html;
+  const btn = document.querySelector(`[data-rv-check="${i}"]`);
+  const label = btn.innerHTML;
+  btn.disabled = true; btn.textContent = "Checking...";
+  rvSetFeedback(i, q, await rvGradeOne(q, i));
+  btn.disabled = false; btn.innerHTML = label;
 }
 
 async function rvSubmit() {
@@ -580,7 +619,7 @@ async function rvSubmit() {
       !confirm(`You've answered ${answered} of ${reviewState.questions.length}. Submit anyway?`)) return;
   reviewState.submitted = true;
   const btn = document.getElementById("rvSubmit");
-  btn.disabled = true; btn.textContent = "Grading…";
+  btn.disabled = true; btn.textContent = "Grading...";
 
   const details = [];
   let score = 0;
@@ -604,53 +643,48 @@ function rvResults(score, details) {
   }
 
   let verdict, cls;
-  if (pct === 100) { verdict = "Perfect. You're ready for this course."; cls = "great"; }
-  else if (pct >= 80) { verdict = "Strong — tighten the misses below and you're in good shape."; cls = "good"; }
-  else if (pct >= 60) { verdict = "Decent foundation. Drill the weak topics below."; cls = "ok"; }
-  else { verdict = "Worth reviewing these topics properly before the semester."; cls = "low"; }
+  if (pct === 100) { verdict = "Perfect — that's the level you want walking in."; cls = "great"; }
+  else if (pct >= 80) { verdict = "Strong. Tighten the misses below."; cls = "good"; }
+  else if (pct >= 60) { verdict = "Decent foundation — drill the topics below."; cls = "ok"; }
+  else { verdict = "Worth reviewing these properly before the semester."; cls = "low"; }
 
-  const missedTopics = [];
+  const missed = [];
   details.filter(d => !d.pass).forEach(d => {
-    if (!missedTopics.some(m => m.topic === d.q.topic))
-      missedTopics.push({ topic: d.q.topic, review: d.q.review });
+    if (!missed.some(m => m.topic === d.q.topic)) missed.push({ topic: d.q.topic, review: d.q.review });
   });
 
-  let h = `<div class="rv-score ${cls}">
-      <div class="rv-score-num">${score}<span>/${total}</span></div>
-      <div class="rv-score-pct">${pct}%</div>
-      <div class="rv-score-verdict">${verdict}</div>
-    </div>`;
+  let h = reviewHeader("Results", reviewState.label, "") +
+    `<div class="rv-score ${cls}">
+       <div class="rv-score-num">${score}<span>/${total}</span></div>
+       <div class="rv-score-verdict">${pct}% — ${verdict}</div>
+     </div>`;
 
-  if (missedTopics.length) {
-    h += `<div class="rv-review-box"><h3>Review these:</h3><ul>` +
-      missedTopics.map(m => `<li><strong>${rvEsc(m.topic)}</strong> &rarr; ${rvEsc(m.review)}</li>`).join("") +
-      `</ul></div>`;
-  } else {
-    h += `<div class="rv-review-box all-ok"><h3>Nothing missed. That's the level you want walking in.</h3></div>`;
-  }
+  h += missed.length
+    ? `<div class="warning-box"><strong>Review these:</strong><ul>${
+        missed.map(m => `<li><strong>${rvEsc(m.topic)}</strong> — ${rvEsc(m.review)}</li>`).join("")}</ul></div>`
+    : `<div class="info-box"><strong>Nothing missed.</strong> Every topic came back clean.</div>`;
 
-  h += `<h3 class="rv-breakdown-title">Breakdown</h3>`;
+  h += `<h3>Question breakdown</h3>`;
   details.forEach(d => {
-    h += `<div class="rv-result ${d.pass ? "pass" : "fail"}">
-      <div class="rv-result-head">${d.pass ? "✓" : "✗"} Q${d.i + 1} · ${rvEsc(d.q.topic)}</div>
-      <div class="rv-result-prompt">${d.q.prompt}</div>`;
-    if (d.q.code) h += `<pre class="rv-code small">${rvEsc(d.q.code)}</pre>`;
-    if (!d.pass) h += `<div class="rv-fb-detail">${rvEsc(d.detail)}</div>
-      <div class="rv-fb-hint"><strong>Hint:</strong> ${d.q.explain}</div>`;
-    h += `</div>`;
+    h += `<div class="concept-block rv-result ${d.pass ? "pass" : "fail"}">
+        <h4>${d.pass ? "&#10003;" : "&#10007;"} Q${d.i + 1} &middot; ${rvEsc(d.q.topic)}</h4>
+        <p>${d.q.prompt}</p>
+        ${d.q.code ? `<div class="code-block">${rvEsc(d.q.code)}</div>` : ""}
+        ${d.pass ? "" : `<p class="rv-detail">${rvEsc(d.detail)}</p>
+           <p class="rv-hint"><strong>Hint:</strong> ${d.q.explain}</p>`}
+      </div>`;
   });
 
-  h += `<div class="rv-footer-actions">
-      <button class="rv-submit" id="rvAgain">Try again (new problems)</button>
-      <button class="rv-quit-btn" id="rvMenu">Back to Menu</button>
+  h += `<div class="lesson-nav-buttons">
+      <button class="nav-btn" id="rvMenu">Back to Menu</button>
+      <button class="nav-btn next-btn" id="rvAgain">Try again — new problems</button>
     </div>`;
 
-  const view = document.getElementById("reviewView");
-  view.innerHTML = h;
+  document.getElementById("reviewView").innerHTML = h;
   window.scrollTo(0, 0);
   document.getElementById("rvAgain").addEventListener("click", () => {
     const ids = [...new Set(reviewState.questions.map(q => q.topicId))];
-    startReview(ids, reviewState.isFull ? 1 : Math.min(3, ids.length === 1 ? 3 : 1), reviewState.label);
+    startReview(ids, reviewState.isFull ? 1 : 3, reviewState.label);
   });
   document.getElementById("rvMenu").addEventListener("click", renderReviewMenu);
 }

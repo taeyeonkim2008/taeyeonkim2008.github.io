@@ -285,6 +285,9 @@ function createEditor(section, uid) {
     const textarea = document.getElementById(`editor_${uid}`);
     const runBtn = editorWrap.querySelector(".run-btn");
     const resetBtn = editorWrap.querySelector(".reset-code-btn");
+    // The view can be swapped (another lesson, or Course Review) before this
+    // deferred callback runs — bail out rather than throwing on missing nodes.
+    if (!textarea || !runBtn || !resetBtn) return;
 
     textarea.addEventListener("keydown", (e) => {
       if (e.key === "Tab") {
@@ -375,6 +378,7 @@ function createQuiz(section, uid) {
     const options = container.querySelectorAll(".quiz-option");
     const feedback = document.getElementById(`quizFeedback_${uid}`);
     const submitBtn = document.getElementById(`quizSubmit_${uid}`);
+    if (!feedback || !submitBtn) return;   // view swapped before this ran
 
     options.forEach(opt => {
       opt.addEventListener("click", () => {
@@ -448,6 +452,9 @@ function createExercise(section, uid) {
     const textarea = document.getElementById(`editor_${uid}`);
     const runBtn = editorWrap.querySelector(".run-btn");
     const resetBtn = editorWrap.querySelector(".reset-code-btn");
+    // The view can be swapped (another lesson, or Course Review) before this
+    // deferred callback runs — bail out rather than throwing on missing nodes.
+    if (!textarea || !runBtn || !resetBtn) return;
 
     textarea.addEventListener("keydown", (e) => {
       if (e.key === "Tab") {
