@@ -19,6 +19,7 @@
         <div class="progress-bar" id="globalProgress"></div>
         <span class="progress-label" id="progressLabel">0% complete</span>
       </div>
+      <button class="review-btn" id="reviewBtn">🧠 Course Review</button>
       <ul class="lesson-nav" id="lessonNav"></ul>
       <div class="sidebar-footer">
         <button class="reset-btn" id="resetProgress">Reset Progress</button>
@@ -53,6 +54,7 @@
             </div>
           </div>
           <button class="start-btn" id="startBtn">Start Learning</button>
+          <button class="review-link-btn" id="reviewWelcomeBtn">Or practice for your course &rarr;</button>
           <p class="pyodide-status" id="pyodideStatus">Loading Python runtime...</p>
         </div>
       </div>
@@ -69,6 +71,8 @@
           <button class="nav-btn next-btn" id="nextBtn">Next Day</button>
         </div>
       </div>
+
+      <div id="reviewView" class="review-view" style="display:none"></div>
     </main>
   </div>
 
@@ -77,5 +81,6 @@
   <script src="app.js"></script>
   <script src="sync.js"></script>
   <script src="original.js"></script>
+  <script src="review.js"></script>
 </body>
 </html>
