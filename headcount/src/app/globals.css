@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+/* Headcount palette — original branding: ink + signal blue on warm paper. */
+:root {
+  --paper: #f6f5f1;
+  --card: #ffffff;
+  --ink: #16181d;
+  --ink-2: #4a4f5a;
+  --ink-3: #7b808b;
+  --line: #e4e2dc;
+  --track: #ecebe6;
+  --accent: #2f6fed;
+  --accent-soft: #e6eefd;
+
+  /* Busyness levels (always paired with a text label, never color alone) */
+  --lvl-empty: #1a9a5b;
+  --lvl-moderate: #c48a00;
+  --lvl-busy: #e0641b;
+  --lvl-packed: #d93a3a;
+  --lvl-empty-soft: #e3f4ea;
+  --lvl-moderate-soft: #faf0d6;
+  --lvl-busy-soft: #fde9dc;
+  --lvl-packed-soft: #fbe3e3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0f1114;
+    --card: #181b20;
+    --ink: #eef0f3;
+    --ink-2: #b4b9c3;
+    --ink-3: #828895;
+    --line: #262a31;
+    --track: #252930;
+    --accent: #6b9bff;
+    --accent-soft: #1b2a47;
+
+    --lvl-empty: #3ccb83;
+    --lvl-moderate: #e6b73a;
+    --lvl-busy: #ff8a47;
+    --lvl-packed: #ff6b6b;
+    --lvl-empty-soft: #15301f;
+    --lvl-moderate-soft: #33290f;
+    --lvl-busy-soft: #3a2213;
+    --lvl-packed-soft: #3b1a1a;
+  }
+}
+
+@theme inline {
+  --color-paper: var(--paper);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-track: var(--track);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+}
+
+html {
+  color-scheme: light dark;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+}
