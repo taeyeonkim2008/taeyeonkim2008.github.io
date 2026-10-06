@@ -4,9 +4,10 @@ import { useState } from "react";
 import Link from "next/link";
 import type { SpaceConfig, SpaceDetailSnapshot } from "@/lib/types";
 import { floorPercent, spacePercent } from "@/lib/busyness";
-import { campusClock } from "@/lib/time";
+import { openDuringHour, openStatus } from "@/lib/hours";
+import { campusClock, hoursOfCampusDay } from "@/lib/time";
 import { useOccupancy } from "@/lib/useOccupancy";
-import { BusyBar, LevelPill } from "./Level";
+import { BusyBar, ClosedPill, LevelPill } from "./Level";
 import StatusBar from "./StatusBar";
 import HourlyChart from "./HourlyChart";
 import TypeIcon, { TYPE_LABEL } from "./TypeIcon";
@@ -25,12 +26,15 @@ export default function SpaceDetailView({
   const { data, updatedAt, loading, error, refresh } = useOccupancy(`/api/spaces/${space.id}`, initial);
   const [sort, setSort] = useState<Sort>("floor");
 
+  const at = new Date(data.asOf);
+  const status = openStatus(space, at);
   const occ = data.spaces[0];
-  const overall = occ && occ.floors.length ? spacePercent(occ) : null;
-  const currentHour = Math.floor(campusClock(new Date(data.fetchedAt)).hour);
+  const overall = status.open && occ && occ.floors.length ? spacePercent(occ) : null;
+  const currentHour = Math.floor(campusClock(at).hour);
+  const openHours = hoursOfCampusDay(at).map((mid) => openDuringHour(space, mid));
 
   const rows = space.floors.map((floor, order) => {
-    const reading = occ?.floors.find((f) => f.floorId === floor.id);
+    const reading = status.open ? occ?.floors.find((f) => f.floorId === floor.id) : undefined;
     return { floor, order, reading, percent: reading ? floorPercent(reading) : null };
   });
   if (sort === "least") rows.sort((a, b) => (a.percent ?? 101) - (b.percent ?? 101) || a.order - b.order);
@@ -52,8 +56,13 @@ export default function SpaceDetailView({
             {space.subtitle && <> · {space.subtitle}</>}
           </div>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">{space.name}</h1>
+          <div className="mt-1 flex items-center gap-1.5 text-xs">
+            <span className={`size-1.5 rounded-full ${status.open ? "bg-[var(--lvl-empty)]" : "bg-ink-3"}`} aria-hidden />
+            <span className="font-medium">{status.open ? "Open" : "Closed"}</span>
+            <span className="text-ink-3">· {status.label}</span>
+          </div>
         </div>
-        {overall !== null && (
+        {overall !== null ? (
           <div className="flex shrink-0 flex-col items-end gap-1.5">
             <div className="text-4xl font-semibold tabular-nums leading-none">
               {overall}
@@ -61,10 +70,18 @@ export default function SpaceDetailView({
             </div>
             <LevelPill percent={overall} />
           </div>
+        ) : (
+          !status.open && <ClosedPill className="shrink-0" />
         )}
       </div>
 
-      <StatusBar isSimulated={data.isSimulated} updatedAt={updatedAt} loading={loading} error={error} onRefresh={refresh} />
+      <StatusBar
+        updatedAt={updatedAt}
+        previewAsOf={data.preview ? data.asOf : undefined}
+        loading={loading}
+        error={error}
+        onRefresh={refresh}
+      />
 
       <section className="overflow-hidden rounded-2xl border border-line bg-card">
         <div className="flex items-center justify-between gap-2 border-b border-line px-4 py-3">
@@ -94,14 +111,16 @@ export default function SpaceDetailView({
                 <div className="min-w-0">
                   <div className="truncate font-medium">{floor.name}</div>
                   <div className="text-xs tabular-nums text-ink-3">
-                    {reading ? `~${reading.count} of ${floor.capacity}` : "No data"}
+                    {!status.open ? `${floor.capacity} seats` : reading ? `~${reading.count} of ${floor.capacity}` : "No data"}
                   </div>
                 </div>
-                {percent !== null && (
+                {percent !== null ? (
                   <div className="flex shrink-0 items-center gap-2.5">
                     <LevelPill percent={percent} />
                     <span className="w-10 text-right text-lg font-semibold tabular-nums">{percent}%</span>
                   </div>
+                ) : (
+                  !status.open && <ClosedPill className="shrink-0" />
                 )}
               </div>
               <div className="mt-2.5">
@@ -114,7 +133,7 @@ export default function SpaceDetailView({
 
       {data.today.length > 0 && (
         <section className="mt-4 rounded-2xl border border-line bg-card p-4">
-          <HourlyChart points={data.today} currentHour={currentHour} />
+          <HourlyChart points={data.today} currentHour={currentHour} openHours={openHours} />
         </section>
       )}
     </>

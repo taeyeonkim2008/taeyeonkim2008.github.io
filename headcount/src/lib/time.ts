@@ -10,7 +10,6 @@ export interface CampusClock {
   dateKey: string;
 }
 
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const formatters = new Map<string, Intl.DateTimeFormat>();
 
 function formatter(timeZone: string): Intl.DateTimeFormat {
@@ -22,7 +21,6 @@ function formatter(timeZone: string): Intl.DateTimeFormat {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
-      weekday: "short",
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
@@ -32,17 +30,37 @@ function formatter(timeZone: string): Intl.DateTimeFormat {
   return f;
 }
 
+const HOUR_MS = 3_600_000;
+const offsets = new Map<string, number>();
+
+/**
+ * UTC offset (ms) of `timeZone` at `ms`. Intl is slow and the simulation calls
+ * this a lot, so cache per UTC hour — DST switches always land on an hour.
+ */
+function utcOffset(ms: number, timeZone: string): number {
+  const bucket = Math.floor(ms / HOUR_MS);
+  const key = `${timeZone}|${bucket}`;
+  let off = offsets.get(key);
+  if (off === undefined) {
+    const t = bucket * HOUR_MS;
+    const p: Record<string, string> = {};
+    for (const part of formatter(timeZone).formatToParts(new Date(t))) p[part.type] = part.value;
+    off = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - t;
+    if (offsets.size > 10_000) offsets.clear();
+    offsets.set(key, off);
+  }
+  return off;
+}
+
 /** Wall-clock info for `date` as seen on campus. */
 export function campusClock(date: Date, timeZone = CAMPUS_TIME_ZONE): CampusClock {
-  const parts: Record<string, string> = {};
-  for (const p of formatter(timeZone).formatToParts(date)) parts[p.type] = p.value;
-  const dayOfWeek = WEEKDAYS.indexOf(parts.weekday);
-  const hour = Number(parts.hour) + Number(parts.minute) / 60 + Number(parts.second) / 3600;
+  const local = new Date(Math.floor(date.getTime() / 1000) * 1000 + utcOffset(date.getTime(), timeZone));
+  const dayOfWeek = local.getUTCDay();
   return {
-    hour,
+    hour: local.getUTCHours() + local.getUTCMinutes() / 60 + local.getUTCSeconds() / 3600,
     dayOfWeek,
     weekend: dayOfWeek === 0 || dayOfWeek === 6,
-    dateKey: `${parts.year}-${parts.month}-${parts.day}`,
+    dateKey: local.toISOString().slice(0, 10),
   };
 }
 

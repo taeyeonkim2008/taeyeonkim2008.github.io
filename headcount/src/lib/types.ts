@@ -21,12 +21,27 @@ export interface FloorConfig {
   profile?: FloorProfile;
 }
 
+export type Weekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
+
+/** Opening interval in campus time, "HH:MM" 24-hour. Close may be "24:00". */
+export type TimeRange = readonly [open: string, close: string];
+
+export type OpeningHours =
+  | "24/7"
+  | {
+      weekly: Record<Weekday, readonly TimeRange[]>;
+      /** Date-specific overrides keyed "YYYY-MM-DD" (holidays). Empty array = closed. */
+      exceptions?: Record<string, readonly TimeRange[]>;
+    };
+
 export interface SpaceConfig {
   id: string;
   name: string;
   type: SpaceType;
   /** Short line shown under the name, e.g. the address or a hint. */
   subtitle?: string;
+  /** Omitted = always open. */
+  hours?: OpeningHours;
   floors: FloorConfig[];
 }
 
@@ -72,6 +87,10 @@ export interface OccupancySnapshot {
   provider: string;
   isSimulated: boolean;
   fetchedAt: string;
+  /** The moment the readings describe — "now", or a demo preview time. */
+  asOf: string;
+  /** True when showing a demo preview time rather than now. */
+  preview: boolean;
   spaces: SpaceOccupancy[];
 }
 

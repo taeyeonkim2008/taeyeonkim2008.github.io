@@ -1,13 +1,16 @@
 // The simulation model: realistic, smooth, deterministic occupancy curves.
 //
 //   ratio = baseCurve(type, local time − lag) ^ exponent × amplitude × dayFactor
+//           × academic-calendar factor × opening-hours ramp
 //           + smooth noise
 //
 // Every term is a pure function of (space, floor, time), so repeated calls for
 // nearby times give nearby numbers — no jumps between refreshes, no state.
 
 import type { FloorConfig, FloorProfile, SpaceConfig, SpaceType } from "@/lib/types";
-import { campusClock } from "@/lib/time";
+import { campusClock, type CampusClock } from "@/lib/time";
+import { openWindow } from "@/lib/hours";
+import { periodOn } from "@/config/calendar";
 import { hashString, randSigned, valueNoise } from "./random";
 
 /** Gaussian bump on a 24h circle, so late-night tails wrap past midnight. */
@@ -64,18 +67,39 @@ export const PROFILE_SHAPES: Record<FloorProfile, ProfileShape> = {
 export const DAY_BOUNDARY_HOUR = 4;
 
 /**
- * How much the weekend curve applies (0–1). Friday 1 am still "belongs" to
- * Thursday night, so the switch happens around DAY_BOUNDARY_HOUR — blended over
- * two hours, when every space is near-empty, so there's no visible step.
+ * Evaluates a per-day quantity (weekend or not, holiday multiplier…) for the
+ * "behavioural day" containing `at`. Friday 1 am still belongs to Thursday
+ * night, so the switch happens around DAY_BOUNDARY_HOUR — blended over two
+ * hours, when every space is near-empty, so there's no visible step.
  */
-export function weekendWeightAt(at: Date, hour: number): number {
-  const isWeekendAt = (offsetHours: number) =>
-    campusClock(new Date(at.getTime() - offsetHours * 3_600_000)).weekend ? 1 : 0;
-  const before = isWeekendAt(DAY_BOUNDARY_HOUR + 1);
-  const after = isWeekendAt(DAY_BOUNDARY_HOUR - 1);
+export function dayBlend(at: Date, hour: number, valueFor: (day: CampusClock) => number): number {
+  const dayAt = (offsetHours: number) => valueFor(campusClock(new Date(at.getTime() - offsetHours * 3_600_000)));
+  const before = dayAt(DAY_BOUNDARY_HOUR + 1);
+  const after = dayAt(DAY_BOUNDARY_HOUR - 1);
   if (before === after) return after;
   const f = Math.min(1, Math.max(0, (hour - (DAY_BOUNDARY_HOUR - 1)) / 2));
   return before + (after - before) * f * f * (3 - 2 * f);
+}
+
+/** Academic-calendar multiplier (breaks, finals…) for a space type. */
+export function calendarFactor(type: SpaceType, day: CampusClock): number {
+  return periodOn(day.dateKey)?.factor[type] ?? 1;
+}
+
+const smoothstep = (x: number) => {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+};
+
+/** Minutes over which a space fills after opening / empties before closing. */
+export const OPENING_RAMP_MIN = 45;
+export const CLOSING_RAMP_MIN = 30;
+
+/** 0 when closed; eases in after opening and out before closing. */
+export function openFactor(space: SpaceConfig, at: Date): number {
+  const w = openWindow(space, at);
+  if (!w.open) return 0;
+  return smoothstep(w.minutesSinceOpen / OPENING_RAMP_MIN) * smoothstep(w.minutesUntilClose / CLOSING_RAMP_MIN);
 }
 
 /** Hard ceiling so floors never read as more than ~full. */
@@ -87,8 +111,11 @@ export const MAX_RATIO = 0.98;
 export function simulateFloorRatio(space: SpaceConfig, floor: FloorConfig, at: Date): number {
   const key = `${space.id}/${floor.id}`;
   const shape = PROFILE_SHAPES[floor.profile ?? "standard"];
+  const open = openFactor(space, at);
+  if (open === 0) return 0;
   const clock = campusClock(at);
-  const weekendWeight = weekendWeightAt(at, clock.hour);
+  const weekendWeight = dayBlend(at, clock.hour, (d) => (d.weekend ? 1 : 0));
+  const term = dayBlend(at, clock.hour, (d) => calendarFactor(space.type, d));
 
   // Fixed per-floor personality so two "standard" floors still differ a little.
   const lag = shape.lag + 0.4 * randSigned(`${key}:lag`);
@@ -100,13 +127,14 @@ export function simulateFloorRatio(space: SpaceConfig, floor: FloorConfig, at: D
   const h = clock.hour - lag;
   const typical =
     baseCurve(space.type, h, false) * (1 - weekendWeight) + baseCurve(space.type, h, true) * weekendWeight;
-  const base = typical ** shape.exponent * amplitude * dayFactor;
+  const base = typical ** shape.exponent * amplitude * dayFactor * term * open;
 
   // Two octaves of smooth noise over real time (minutes). Scaled down when the
-  // floor is near-empty so 4 am doesn't wobble between 0% and 8%.
+  // floor is near-empty (or just opening) so it doesn't wobble between 0% and 8%.
   const seed = hashString(key);
   const minutes = at.getTime() / 60_000;
-  const noise = (0.045 * valueNoise(seed, minutes, 20) + 0.015 * valueNoise(seed + 1, minutes, 5)) * (0.3 + base);
+  const noise =
+    (0.045 * valueNoise(seed, minutes, 20) + 0.015 * valueNoise(seed + 1, minutes, 5)) * (0.3 + base) * open;
 
   return Math.max(0, Math.min(MAX_RATIO, base + noise));
 }

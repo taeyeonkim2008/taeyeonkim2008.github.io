@@ -28,10 +28,12 @@ export class SimulatedProvider implements OccupancyProvider {
   async getToday(spaceId: string): Promise<HourlyPoint[]> {
     const space = this.spaces.find((s) => s.id === spaceId);
     if (!space) throw new Error(`Unknown space: ${spaceId}`);
-    return hoursOfCampusDay(this.now()).map((at, hour) => ({
-      hour,
-      percent: spacePercent(this.snapshot(space, at)),
-    }));
+    // Average three samples per hour so short openings (e.g. a dining hall's
+    // 10:00–10:30 breakfast tail) still show up in the bar.
+    return hoursOfCampusDay(this.now()).map((mid, hour) => {
+      const samples = [-20, 0, 20].map((min) => spacePercent(this.snapshot(space, new Date(mid.getTime() + min * 60_000))));
+      return { hour, percent: Math.round(samples.reduce((a, b) => a + b, 0) / samples.length) };
+    });
   }
 
   private snapshot(space: SpaceConfig, at: Date): SpaceOccupancy {

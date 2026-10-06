@@ -35,6 +35,12 @@ describe("campusClock", () => {
     expect(c.dateKey).toBe(WEEKDAY);
     expect(campusClock(at(SATURDAY, 9)).weekend).toBe(true);
   });
+
+  it("handles the daylight-saving switch (Nov 1, 2026)", () => {
+    expect(campusClock(new Date("2026-10-31T23:30:00-04:00"))).toMatchObject({ hour: 23.5, dateKey: "2026-10-31" });
+    expect(campusClock(new Date("2026-11-01T01:30:00-05:00"))).toMatchObject({ hour: 1.5, dateKey: "2026-11-01" });
+    expect(campusClock(new Date("2026-11-01T12:00:00-05:00"))).toMatchObject({ hour: 12, dayOfWeek: 0 });
+  });
 });
 
 describe("baseCurve", () => {
@@ -116,25 +122,68 @@ describe("bounds and smoothness", () => {
     expect(simulateFloorRatio(s, s.floors[0], t)).toBe(simulateFloorRatio(s, s.floors[0], t));
   });
 
-  it("changes by at most ~2 points between 30-second refreshes, all week (incl. midnight and weekend switches)", () => {
-    const start = at("2026-10-05", 0).getTime(); // Monday
+  /** Largest change between consecutive 30-second samples over `days` from `start`. */
+  const maxStepOver = (s: SpaceConfig, f: SpaceConfig["floors"][number], start: number, days: number) => {
     let maxStep = 0;
-    for (const s of SPACES)
-      for (const f of s.floors) {
-        let prev = simulateFloorRatio(s, f, new Date(start));
-        for (let sec = 30; sec <= 7 * 24 * 3600; sec += 30) {
-          const cur = simulateFloorRatio(s, f, new Date(start + sec * 1000));
-          maxStep = Math.max(maxStep, Math.abs(cur - prev));
-          prev = cur;
-        }
-      }
-    expect(maxStep).toBeLessThan(0.02);
+    let prev = simulateFloorRatio(s, f, new Date(start));
+    for (let sec = 30; sec <= days * 24 * 3600; sec += 30) {
+      const cur = simulateFloorRatio(s, f, new Date(start + sec * 1000));
+      maxStep = Math.max(maxStep, Math.abs(cur - prev));
+      prev = cur;
+    }
+    return maxStep;
+  };
+
+  it("changes by at most ~2 points between 30-second refreshes, all week (incl. midnight, weekend, opening and closing)", () => {
+    const start = at("2026-10-05", 0).getTime(); // Monday
+    for (const s of SPACES) for (const f of s.floors) expect(maxStepOver(s, f, start, 7)).toBeLessThan(0.02);
+  });
+
+  it("stays smooth across calendar changes (Thanksgiving, finals → winter break)", () => {
+    for (const start of [new Date("2026-11-23T00:00:00-05:00"), new Date("2026-12-20T00:00:00-05:00")])
+      for (const s of SPACES) expect(maxStepOver(s, s.floors[0], start.getTime(), 7)).toBeLessThan(0.02);
   });
 
   it("has visible noise (not a perfectly flat curve)", () => {
     const s = space("study");
     const values = Array.from({ length: 12 }, (_, i) => simulateFloorRatio(s, s.floors[0], at(WEEKDAY, 14, i * 5)));
     expect(new Set(values.map((v) => v.toFixed(3))).size).toBeGreaterThan(6);
+  });
+});
+
+describe("opening hours and the academic calendar", () => {
+  const byId = (id: string) => SPACES.find((s) => s.id === id)!;
+  const palladium = byId("palladium-gym");
+  const downstein = byId("downstein");
+  const bobst = byId("bobst");
+  const stacks = bobst.floors.find((f) => f.id === "f4")!;
+  const est = (day: string, hour: number) => new Date(`${day}T${String(hour).padStart(2, "0")}:00:00-05:00`);
+  const avgAt = (s: SpaceConfig, f: SpaceConfig["floors"][number], t: Date) => {
+    let sum = 0;
+    for (let m = 0; m < 60; m += 5) sum += simulateFloorRatio(s, f, new Date(t.getTime() + m * 60_000));
+    return sum / 12;
+  };
+
+  it("reads exactly zero while a space is closed", () => {
+    expect(simulateFloorRatio(palladium, palladium.floors[0], at(WEEKDAY, 6))).toBe(0); // opens 7:30
+    expect(simulateFloorRatio(downstein, downstein.floors[0], at(WEEKDAY, 15, 30))).toBe(0); // 3–4 pm break
+    expect(simulateFloorRatio(palladium, palladium.floors[0], est("2026-11-26", 12))).toBe(0); // Thanksgiving
+  });
+
+  it("fills gradually after opening instead of jumping", () => {
+    const justOpened = simulateFloorRatio(palladium, palladium.floors[0], at(WEEKDAY, 7, 35));
+    const hourLater = simulateFloorRatio(palladium, palladium.floors[0], at(WEEKDAY, 8, 30));
+    expect(justOpened).toBeLessThan(hourLater * 0.3);
+  });
+
+  it("is much quieter over Thanksgiving and busier during finals", () => {
+    const normalThu = avgAt(bobst, stacks, est("2026-11-19", 14));
+    const thanksgiving = avgAt(bobst, stacks, est("2026-11-26", 14));
+    expect(thanksgiving).toBeLessThan(normalThu * 0.5);
+
+    const normalWed = avgAt(bobst, stacks, est("2026-12-02", 14));
+    const finalsWed = avgAt(bobst, stacks, est("2026-12-16", 14));
+    expect(finalsWed).toBeGreaterThan(normalWed * 1.15);
   });
 });
 

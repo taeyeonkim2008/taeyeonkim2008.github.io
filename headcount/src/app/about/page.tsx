@@ -44,8 +44,10 @@ export default function AboutPage() {
 
       {simulated && (
         <div className="mt-5 rounded-2xl border border-dashed border-ink-3/60 p-4 text-sm leading-relaxed text-ink-2">
-          <strong className="text-ink">This is a demo.</strong> All numbers are currently <em>simulated</em> from typical
-          daily patterns (quiet mornings, busy middays and evenings, calmer weekends). They are not real measurements.
+          <strong className="text-ink">This is a demo.</strong> Busyness numbers are currently <em>simulated</em> from
+          typical patterns — quiet mornings, busy middays and evenings, calmer weekends, quieter breaks and busier finals.
+          They are not real measurements. Opening hours, floors and the academic calendar are taken from NYU&apos;s
+          published information.
         </div>
       )}
 
@@ -64,7 +66,8 @@ export default function AboutPage() {
         Busyness is the estimated count divided by the space&apos;s seating or safe capacity.{" "}
         <strong className="text-ink">Empty</strong> is under 25%, <strong className="text-ink">Moderate</strong> 25–59%,{" "}
         <strong className="text-ink">Busy</strong> 60–85%, and <strong className="text-ink">Packed</strong> above 85%.
-        Numbers refresh every 30 seconds.
+        Spaces outside their opening hours show as <strong className="text-ink">Closed</strong>. Numbers refresh every
+        30 seconds.
       </p>
 
       <p className="mt-8 text-xs text-ink-3">
