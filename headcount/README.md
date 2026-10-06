@@ -20,6 +20,15 @@ npm run build      # production build
 
 Requires Node 20+.
 
+## Install on a phone
+
+Headcount is a Progressive Web App, so people can add it to their home screen and it opens full-screen like a native app. There's no app store involved.
+
+- **iPhone / iPad:** in Safari, tap Share → **Add to Home Screen**. iOS Safari users see a small dismissible banner explaining this. It doesn't appear in other browsers, once Headcount is installed, or after it's been dismissed.
+- **Android:** in Chrome, tap ⋮ → **Install app** (or **Add to Home screen**).
+
+The manifest is in `src/app/manifest.ts`. The icons are generated from one design by `npm run icons` (`scripts/generate-icons.mjs`). There is deliberately no offline mode, because busyness data is only useful when it's fresh.
+
 ## Deploy to Vercel
 
 1. Push this folder to GitHub. If it lives inside a larger repo, set **Root Directory** to `headcount` in the Vercel project settings.
@@ -176,6 +185,10 @@ The thresholds are defined in `src/lib/busyness.ts`. Each color always appears t
 | `src/components/Level.tsx` | Level pill, Closed pill and busyness bar. |
 | `src/components/SpaceCard.tsx`, `BestSpotBanner.tsx`, `Header.tsx`, `Logo.tsx`, `TypeIcon.tsx` | Presentational pieces. |
 | `src/app/globals.css` | Design tokens (light and dark) for Tailwind. |
+| `src/app/manifest.ts` | Web app manifest (name, colors, standalone display, icons). |
+| `src/app/icon.svg`, `src/app/apple-icon.png`, `public/icons/` | Favicon, iPhone home-screen icon, Android icons (regular and maskable). |
+| `scripts/generate-icons.mjs` | Renders all icons from one SVG design (`npm run icons`). |
+| `src/components/InstallHint.tsx`, `src/lib/installHint.ts` | iOS Safari "Add to Home Screen" banner and the logic that decides when to show it. |
 
 ## Privacy
 

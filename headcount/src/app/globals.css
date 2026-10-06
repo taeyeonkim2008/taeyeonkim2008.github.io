@@ -68,3 +68,10 @@ body {
   background: var(--paper);
   color: var(--ink);
 }
+
+@keyframes hint-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
